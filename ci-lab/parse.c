@@ -66,13 +66,13 @@ static token_t check_reserved_ids(char *s) {
 static node_t *build_leaf(void) {
     node_t *result = calloc(1, sizeof(node_t));
     result->node_type = NT_LEAF;
-    result->tok = this_token->ttpye;
+    result->tok = this_token->ttype;
 
     switch(this_token->ttype) {
         case TOK_NUM:
             result->type = INT_TYPE;
             // TODO figure out how to convert string to int
-            result->val.ival = (int) strtol(this_token.repr, NULL, 10);
+            result->val.ival = (int) strtol(this_token->repr, NULL, 10);
             break;
         case TOK_TRUE:
             result->type = BOOL_TYPE;
@@ -93,7 +93,8 @@ static node_t *build_leaf(void) {
             strcpy(result->val.sval, this_token->repr);
             break;
         default:
-            //TODO: Handle error
+            logging(LOG_ERROR, "Unrecognized token for building leaf node.");
+            break;
     }
 
     return result;
@@ -141,7 +142,7 @@ static node_t *build_exp(void) {
             advance_lexer();
             result->children[0] = build_exp();
             if(is_binop(next_token->ttype)) {
-                result->tok = next_token;
+                result->tok = next_token->ttype;
                 advance_lexer();
                 advance_lexer();
                 result->children[1] = build_exp();
@@ -256,7 +257,12 @@ node_t *read_and_parse(void) {
  * Return value: none
  * (STUDENT TODO) */
 void cleanup(node_t *nptr) {
-    // Is it enough to free the node the function called upon?
+    if(nptr == NULL) {
+        return;
+    }
+    for(int i = 0; i < 3; i++) {
+        cleanup(nptr->children[i]);
+    }
     free(nptr);
     return;
 }

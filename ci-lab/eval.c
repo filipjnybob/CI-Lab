@@ -20,7 +20,7 @@ char *strrev(char *str);
 static const struct {
     token_t binopTok;
     int numValid;
-    node_type_t types[];
+    node_type_t types[2];
 } binopTypes[] = {
     {TOK_PLUS,   2,    {INT_TYPE, STRING_TYPE}},              // +
     {TOK_BMINUS, 1,    {INT_TYPE}},                           // -
@@ -66,7 +66,7 @@ static void infer_type(node_t *nptr) {
                 }
             }
 
-            handle_error(ERR_TYPE)
+            handle_error(ERR_TYPE);
         }
     }
 
@@ -121,17 +121,17 @@ static void eval_node(node_t *nptr) {
 
             switch(nptr->tok) {
                 case TOK_PLUS:
-                    if(nptr->children[0].type == INT_TYPE) {
+                    if(nptr->children[0]->type == INT_TYPE) {
                         nptr->val.ival = nptr->children[0]->val.ival + nptr->children[1]->val.ival;
                     }
-                    if(nptr->children[0].type == STRING_TYPE) {
+                    if(nptr->children[0]->type == STRING_TYPE) {
                         nptr->val.sval = (char *) malloc(strlen(nptr->children[0]->val.sval) + strlen(nptr->children[1]->val.sval) + 1);
                         if (! nptr->val.sval) {
                             logging(LOG_FATAL, "failed to allocate string");
                             return;
                         }
                         
-                        strcopy(nptr->val.sval, nptr->children[0]->val.sval);
+                        strcpy(nptr->val.sval, nptr->children[0]->val.sval);
                         strcat(nptr->val.sval, nptr->children[1]->val.sval);
                     }
                     break;
