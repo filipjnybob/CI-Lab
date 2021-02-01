@@ -15,6 +15,25 @@ extern bool is_binop(token_t);
 extern bool is_unop(token_t);
 char *strrev(char *str);
 
+// Lists valid types for each binop operator
+// Can access the correct list by calling binopTypes[(Token) - TOK_PLUS]
+static const struct {
+    token_t binopTok;
+    int numValid;
+    node_type_t types[];
+} binopTypes[] = {
+    {TOK_PLUS,   2,    {INT_TYPE, STRING_TYPE}},              // +
+    {TOK_BMINUS, 1,    {INT_TYPE}},                           // -
+    {TOK_TIMES,  2,    {INT_TYPE, STRING_TYPE}},              // *
+    {TOK_DIV,    1,    {INT_TYPE}},                           // /
+    {TOK_MOD,    1,    {INT_TYPE}},                           // %
+    {TOK_AND,    1,    {BOOL_TYPE}},                          // &
+    {TOK_OR,     1,    {BOOL_TYPE}},                          // |
+    {TOK_LT,     2,    {INT_TYPE, STRING_TYPE}},              // <
+    {TOK_GT,     2,    {INT_TYPE, STRING_TYPE}},              // >
+    {TOK_EQ,     2,    {INT_TYPE, STRING_TYPE}}               // ~
+};
+
 /* infer_type() - set the type of a non-root node based on the types of children
  * Parameter: A node pointer, possibly NULL.
  * Return value: None.
@@ -23,6 +42,34 @@ char *strrev(char *str);
  */
 
 static void infer_type(node_t *nptr) {
+    if(nptr == NULL) return;
+    if (terminate || ignore_input) return;
+
+    if(nptr->node_type == NT_INTERNAL) {
+        for (int i = 0; i < 3; ++i) {
+            infer_type(nptr->children[i]);
+        }
+
+        // Handle binary operator
+        if(is_binop(nptr->tok)) {
+            if(nptr->children[0]->type != nptr->children[1]->type) {
+                handle_error(ERR_TYPE);
+            }
+
+            node_type_t childrenType = nptr->children[0]->type;
+            int index = nptr->tok - TOK_PLUS;
+            
+            for(int i = 0; i < binopTypes[index].numValid; i++) {
+                if(childrenType == binopTypes[index].types[i]) {
+                    nptr->type = childrenType;
+                    return;
+                }
+            }
+
+            handle_error(ERR_TYPE)
+        }
+    }
+
     return;
 }
 
@@ -61,6 +108,38 @@ static void infer_root(node_t *nptr) {
  */
 
 static void eval_node(node_t *nptr) {
+    if(nptr == NULL) return;
+    if(terminate || ignore_input) return;
+
+    if(nptr->node_type == NT_INTERNAL) {
+        if(is_binop(nptr->tok)) {
+            for(int i = 0; i < 2; i++) {
+                eval_node(nptr->children[i]);
+            }
+
+            if(terminate || ignore_input) return;
+
+            switch(nptr->tok) {
+                case TOK_PLUS:
+                    if(nptr->children[0].type == INT_TYPE) {
+                        nptr->val.ival = nptr->children[0]->val.ival + nptr->children[1]->val.ival;
+                    }
+                    if(nptr->children[0].type == STRING_TYPE) {
+                        nptr->val.sval = (char *) malloc(strlen(nptr->children[0]->val.sval) + strlen(nptr->children[1]->val.sval) + 1);
+                        if (! nptr->val.sval) {
+                            logging(LOG_FATAL, "failed to allocate string");
+                            return;
+                        }
+                        
+                        strcopy(nptr->val.sval, nptr->children[0]->val.sval);
+                        strcat(nptr->val.sval, nptr->children[1]->val.sval);
+                    }
+                    break;
+            }
+
+        }
+    }
+
     return;
 }
 

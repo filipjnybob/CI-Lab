@@ -64,7 +64,39 @@ static token_t check_reserved_ids(char *s) {
  * Return value: pointer to a leaf node
  * (STUDENT TODO) */
 static node_t *build_leaf(void) {
-    return NULL;
+    node_t *result = calloc(1, sizeof(node_t));
+    result->node_type = NT_LEAF;
+    result->tok = this_token->ttpye;
+
+    switch(this_token->ttype) {
+        case TOK_NUM:
+            result->type = INT_TYPE;
+            // TODO figure out how to convert string to int
+            result->val.ival = (int) strtol(this_token.repr, NULL, 10);
+            break;
+        case TOK_TRUE:
+            result->type = BOOL_TYPE;
+            result->val.bval = true;
+            break;
+        case TOK_FALSE:
+            result->type = BOOL_TYPE;
+            result->val.bval = false;
+            break;
+        case TOK_STR:
+            result->type = STRING_TYPE;
+            result->val.sval = (char *) malloc(strlen(this_token->repr) + 1);
+            if (! result->val.sval) {
+                //TODO: Check for errors in memory allocation for all allocations
+                logging(LOG_FATAL, "failed to allocate string");
+                return NULL;
+            }
+            strcpy(result->val.sval, this_token->repr);
+            break;
+        default:
+            //TODO: Handle error
+    }
+
+    return result;
 }
 
 /* build_exp() - parse an expression based on this_token and / or next_token
@@ -90,7 +122,36 @@ static node_t *build_exp(void) {
         }
         return build_leaf();
     } else {
+        node_t* result = calloc(1, sizeof(node_t));
+        result->node_type = NT_INTERNAL;
+        result->type = NO_TYPE;
+
         // (STUDENT TODO) implement the logic for internal nodes
+        // Unary Operator
+        if(is_unop(this_token->ttype)) {
+            result->tok = this_token->ttype;
+            advance_lexer();
+            result->children[0] = build_exp();
+            return result;
+        }
+
+        // 
+        if(this_token->ttype == TOK_LPAREN) {
+            // Start of new expression
+            advance_lexer();
+            result->children[0] = build_exp();
+            if(is_binop(next_token->ttype)) {
+                result->tok = next_token;
+                advance_lexer();
+                advance_lexer();
+                result->children[1] = build_exp();
+                if(next_token->ttype != TOK_RPAREN) {
+                    // TODO: Throw the correct error
+                }
+                advance_lexer();
+                return result;
+            }
+        }
         return NULL;
     }
 }
