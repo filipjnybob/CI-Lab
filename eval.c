@@ -100,6 +100,32 @@ static void infer_root(node_t *nptr) {
     return;
 }
 
+static void add(value_t *value,node_t *left, node_t *right) {
+    if(left->type != right->type) {
+        handle_error(ERR_TYPE);
+        return;
+    }
+
+    if(left->type == INT_TYPE) {
+        value->ival = left->val.ival + right->val.ival;
+        return;
+    }
+    if(left->type == STRING_TYPE) {
+        value->sval = (char *) malloc(strlen(left->val.sval) + strlen(right->val.sval) + 1);
+        if (! value->sval) {
+            logging(LOG_FATAL, "failed to allocate string");
+            return;
+        }
+                        
+        strcpy(value->sval, left->val.sval);
+        strcat(value->sval, right->val.sval);
+        return;
+    }
+
+    handle_error(ERR_TYPE);
+    return;
+}
+
 /* eval_node() - set the value of a non-root node based on the values of children
  * Parameter: A node pointer, possibly NULL.
  * Return value: None.
@@ -121,19 +147,7 @@ static void eval_node(node_t *nptr) {
 
             switch(nptr->tok) {
                 case TOK_PLUS:
-                    if(nptr->children[0]->type == INT_TYPE) {
-                        nptr->val.ival = nptr->children[0]->val.ival + nptr->children[1]->val.ival;
-                    }
-                    if(nptr->children[0]->type == STRING_TYPE) {
-                        nptr->val.sval = (char *) malloc(strlen(nptr->children[0]->val.sval) + strlen(nptr->children[1]->val.sval) + 1);
-                        if (! nptr->val.sval) {
-                            logging(LOG_FATAL, "failed to allocate string");
-                            return;
-                        }
-                        
-                        strcpy(nptr->val.sval, nptr->children[0]->val.sval);
-                        strcat(nptr->val.sval, nptr->children[1]->val.sval);
-                    }
+                    add(&nptr->val, nptr->children[0], nptr->children[1]);
                     break;
             }
 
