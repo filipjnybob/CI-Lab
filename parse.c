@@ -82,6 +82,10 @@ static node_t *build_leaf(void) {
             result->type = BOOL_TYPE;
             result->val.bval = false;
             break;
+        case TOK_FMT_SPEC:
+            result->type = FMT_TYPE;
+            result->val.fval = *this_token->repr;
+            break;
         case TOK_STR:
             result->type = STRING_TYPE;
             result->val.sval = (char *) malloc(strlen(this_token->repr) + 1);
@@ -128,26 +132,60 @@ static node_t *build_exp(void) {
         result->type = NO_TYPE;
 
         // (STUDENT TODO) implement the logic for internal nodes
-        // Unary Operator
-        if(is_unop(this_token->ttype)) {
-            result->tok = this_token->ttype;
-            advance_lexer();
-            result->children[0] = build_exp();
-            return result;
-        }
 
-        // 
+        // Handle parenthesis
         if(this_token->ttype == TOK_LPAREN) {
             // Start of new expression
             advance_lexer();
-            result->children[0] = build_exp();
+
+            // Handle unary operators
+            if(is_unop(this_token->ttype)) {
+                result->tok = this_token->ttype;
+                advance_lexer();
+                result->children[0] = build_exp();
+                if(next_token->ttype != TOK_RPAREN) {
+                    handle_error(ERR_SYNTAX);
+                    return NULL;
+                }
+                advance_lexer();
+                return result;
+            }
+
+            node_t* temp = build_exp();
+            
+            if(next_token->ttype == TOK_RPAREN) {
+                free(result);
+                advance_lexer();
+                return temp;
+            }
+            result->children[0] = temp;
             if(is_binop(next_token->ttype)) {
                 result->tok = next_token->ttype;
                 advance_lexer();
                 advance_lexer();
                 result->children[1] = build_exp();
                 if(next_token->ttype != TOK_RPAREN) {
-                    // TODO: Throw the correct error
+                    handle_error(ERR_SYNTAX);
+                    return NULL;
+                }
+                advance_lexer();
+                return result;
+            } else if(next_token->ttype == TOK_QUESTION) {
+                // Handle Ternary
+                result->tok = next_token->ttype;
+                advance_lexer();
+                advance_lexer();
+                result->children[1] = build_exp();
+                if(next_token->ttype != TOK_COLON) {
+                    handle_error(ERR_SYNTAX);
+                    return NULL;
+                }
+                advance_lexer();
+                advance_lexer();
+                result->children[2] = build_exp();
+                if(next_token->ttype != TOK_RPAREN) {
+                    handle_error(ERR_SYNTAX);
+                    return NULL;
                 }
                 advance_lexer();
                 return result;

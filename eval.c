@@ -19,6 +19,11 @@ static void subtract(value_t *value, node_t *left, node_t *right);
 static void multiply(value_t *value, node_t *left, node_t *right);
 static void divide(value_t *value, node_t *left, node_t *right);
 static void modulo(value_t *value, node_t *left, node_t *right);
+static void and(value_t *value, node_t *left, node_t *right);
+static void or(value_t *value, node_t *left, node_t *right);
+static void lessThan(value_t *value, node_t *left, node_t *right);
+static void greaterThan(value_t *value, node_t *left, node_t *right);
+static void equals(value_t *value, node_t *left, node_t *right);
 
 // TODO TODO****: Paste new tarball files from canvas into the directory
 
@@ -35,11 +40,11 @@ static const struct {
     {TOK_TIMES,  &multiply, 2,    {INT_TYPE, STRING_TYPE}},              // *
     {TOK_DIV,    &divide, 1,    {INT_TYPE}},                           // /
     {TOK_MOD,    &modulo, 1,    {INT_TYPE}},                           // %
-    {TOK_AND,    NULL, 1,    {BOOL_TYPE}},                          // &
-    {TOK_OR,     NULL, 1,    {BOOL_TYPE}},                          // |
-    {TOK_LT,     NULL, 2,    {INT_TYPE, STRING_TYPE}},              // <
-    {TOK_GT,     NULL, 2,    {INT_TYPE, STRING_TYPE}},              // >
-    {TOK_EQ,     NULL, 2,    {INT_TYPE, STRING_TYPE}}               // ~
+    {TOK_AND,    &and, 1,    {BOOL_TYPE}},                          // &
+    {TOK_OR,     &or, 1,    {BOOL_TYPE}},                          // |
+    {TOK_LT,     &lessThan, 2,    {INT_TYPE, STRING_TYPE}},              // <
+    {TOK_GT,     &greaterThan, 2,    {INT_TYPE, STRING_TYPE}},              // >
+    {TOK_EQ,     &equals, 2,    {INT_TYPE, STRING_TYPE}}               // ~
 };
 
 /* infer_type() - set the type of a non-root node based on the types of children
@@ -58,24 +63,99 @@ static void infer_type(node_t *nptr) {
             infer_type(nptr->children[i]);
         }
 
-        // Handle binary operator
-        if(is_binop(nptr->tok)) {
-            if(nptr->children[0]->type != nptr->children[1]->type) {
-                handle_error(ERR_TYPE);
+        // Handle unary operator
+        if(is_unop(nptr->tok)) {
+            if(nptr->tok == TOK_UMINUS) {
+                if(nptr->children[0]->type == INT_TYPE) {
+                    nptr->type = INT_TYPE;
+                } else if(nptr->children[0]->type == STRING_TYPE) {
+                    nptr->type = STRING_TYPE;
+                } else {
+                    handle_error(ERR_TYPE);
+                    return;
+                }
+                return;
             }
 
-            node_type_t childrenType = nptr->children[0]->type;
-            int index = nptr->tok - TOK_PLUS;
-            
-            for(int i = 0; i < binopTypes[index].numValid; i++) {
-                if(childrenType == binopTypes[index].types[i]) {
-                    nptr->type = childrenType;
+            if(nptr->tok == TOK_NOT) {
+                if(nptr->children[0]->type != BOOL_TYPE) {
+                    handle_error(ERR_TYPE);
                     return;
+                }
+
+                nptr->type = BOOL_TYPE;
+                return;
+            }
+        }
+
+        // Handle binary operator
+        if(is_binop(nptr->tok)) {
+            
+            // Special case
+            // String times operator allows different types
+            if(nptr->tok == TOK_TIMES) {
+                // 2nd argument must be an int
+                if(nptr->children[1]->type != INT_TYPE) {
+                    handle_error(ERR_TYPE);
+                    return;
+                }
+
+                if(nptr->children[0]->type == INT_TYPE) {
+                    nptr->type = INT_TYPE;
+                    return;
+                } else if(nptr->children[0]->type == STRING_TYPE) {
+                    nptr->type = STRING_TYPE;
+                    return;
+                }
+
+                handle_error(ERR_TYPE);
+                return;
+            } else {
+                // All other tokens
+                if(nptr->children[0]->type != nptr->children[1]->type) {
+                    handle_error(ERR_TYPE);
+                }
+
+                node_type_t childrenType = nptr->children[0]->type;
+                int index = nptr->tok - TOK_PLUS;
+            
+                for(int i = 0; i < binopTypes[index].numValid; i++) {
+                    if(childrenType == binopTypes[index].types[i]) {
+                        if(nptr->tok == TOK_GT || nptr->tok == TOK_LT || nptr->tok == TOK_EQ) {
+                            nptr->type = BOOL_TYPE;
+                        } else {
+                            nptr->type = childrenType;
+                        }
+                        
+                        return;
+                    }
                 }
             }
 
+            
+
+            
+
             handle_error(ERR_TYPE);
         }
+
+        // Handle ternary operator
+        if(nptr->tok == TOK_QUESTION) {
+            if(nptr->children[0]->type != BOOL_TYPE) {
+                handle_error(ERR_TYPE);
+                return;
+            }
+
+            if(nptr->children[1]->type == nptr->children[2]->type) {
+                nptr->type = nptr->children[1]->type;
+                return;
+            }
+
+            handle_error(ERR_TYPE);
+            return;
+
+        }
+        
     }
 
     return;
@@ -155,20 +235,25 @@ static void multiply(value_t *value, node_t *left, node_t *right) {
         return;
     }
 
+    // Handle ints
     if(left->type == INT_TYPE) {
         value->ival = left->val.ival * right->val.ival;
         return;
     }
 
+    // Handle Strings
     if(left->type == STRING_TYPE) {
-        value->sval = (char *) malloc(strlen(left->val.sval) + strlen(right->val.sval) + 1);
+        value->sval = (char *) malloc((strlen(left->val.sval) * right->val.ival) + 1);
         if (! value->sval) {
             logging(LOG_FATAL, "failed to allocate string");
             return;
         }
-                        
-        strcpy(value->sval, left->val.sval);
-        strcat(value->sval, right->val.sval);
+
+        strcpy(value->sval, "");
+
+        for(int i = 0; i < right->val.ival; i++) {
+            strcat(value->sval, left->val.sval);
+        }
         return;
     }
 
@@ -195,8 +280,8 @@ static void divide(value_t *value, node_t *left, node_t *right) {
     return;
 }
 
-/* modulo() - Returns the modulo of the left value by the right value
- * and  stores it in vale. Causes an evaluation error if modulo by 0.
+/* modulo() - Calculates the modulo of the left value by the right value
+ * and  stores it in value. Causes an evaluation error if modulo by 0.
  */
 static void modulo(value_t *value, node_t *left, node_t *right) {
     if(left->type != INT_TYPE || right->type != INT_TYPE) {
@@ -210,6 +295,101 @@ static void modulo(value_t *value, node_t *left, node_t *right) {
     }
 
     value->ival = left->val.ival % right->val.ival;
+    return;
+}
+
+/* add() - Calculates the AND of the left and right bool values and
+ * stores it in value
+ */
+static void and(value_t *value, node_t *left, node_t *right) {
+    if(left->type != BOOL_TYPE || right->type != BOOL_TYPE) {
+        handle_error(ERR_TYPE);
+        return;
+    }
+
+    value->bval = left->val.bval && right->val.bval;
+    return;
+}
+
+/* add() - Calculates the OR of the left and right bool values and
+ * stores it in value
+ */
+static void or(value_t *value, node_t *left, node_t *right) {
+    if(left->type != BOOL_TYPE || right->type != BOOL_TYPE) {
+        handle_error(ERR_TYPE);
+        return;
+    }
+
+    value->bval = left->val.bval || right->val.bval;
+    return;
+}
+
+/* lessThan() - Compares either two ints or two strings lexigraphically
+ * and stores true in value if left is less than right.
+ */
+static void lessThan(value_t *value, node_t *left, node_t *right) {
+
+    strcmp("abd", "abc");
+
+    if(left->type != right->type) {
+        handle_error(ERR_TYPE);
+        return;
+    }
+
+    if(left->type == INT_TYPE) {
+        value->bval = left->val.ival < right->val.ival;
+        return;
+    }
+    if(left->type == STRING_TYPE) {
+        value->bval = strcmp(left->val.sval, right->val.sval) < 0;;
+        return;
+    }
+
+    handle_error(ERR_TYPE);
+    return;
+}
+
+/* greaterThan() - Compares either two ints or two strings lexigraphically
+ * and stores true in value if left is greater than right.
+ */
+static void greaterThan(value_t *value, node_t *left, node_t *right) {
+    if(left->type != right->type) {
+        handle_error(ERR_TYPE);
+        return;
+    }
+
+    if(left->type == INT_TYPE) {
+        value->bval = left->val.ival > right->val.ival;
+        return;
+    }
+    if(left->type == STRING_TYPE) {
+        value->bval = strcmp(left->val.sval, right->val.sval) > 0;
+        return;
+    }
+
+    handle_error(ERR_TYPE);
+    return;
+}
+
+/* equals() - Compares either two ints or two strings lexigraphically
+ * and stores true in value if left is equal to right.
+ */
+static void equals(value_t *value, node_t *left, node_t *right) {
+    if(left->type != right->type) {
+        handle_error(ERR_TYPE);
+        return;
+    }
+
+    if(left->type == INT_TYPE) {
+        value->bval = left->val.ival == right->val.ival;
+        return;
+    }
+    if(left->type == STRING_TYPE) {
+        value->bval = strcmp(left->val.sval, right->val.sval) == 0;
+        return;
+    }
+
+    handle_error(ERR_TYPE);
     return;
 }
 
@@ -227,18 +407,71 @@ static void eval_node(node_t *nptr) {
     if(terminate || ignore_input) return;
 
     if(nptr->node_type == NT_INTERNAL) {
+        
+        for(int i = 0; i < 2; i++) {
+            eval_node(nptr->children[i]);
+        }
+        
+        // Handle unary operators
+        if(is_unop(nptr->tok)) {
+            // _
+            if(nptr->tok == TOK_UMINUS) {
+                if(nptr->children[0]->type == INT_TYPE) {
+                    nptr->val.ival = nptr->children[0]->val.ival * -1;
+                } else if(nptr->children[0]->type == STRING_TYPE) {
+                    nptr->val.sval = (char*) malloc(strlen(nptr->children[0]->val.sval) + 1);
+                    nptr->val.sval = strrev(nptr->children[0]->val.sval);
+                } else {
+                    handle_error(ERR_TYPE);
+                    return;
+                }
+                return;
+            }
+
+            // !
+            else if(nptr->tok == TOK_NOT) {
+                if(nptr->children[0]->type != BOOL_TYPE) {
+                    handle_error(ERR_TYPE);
+                    return;
+                }
+
+                nptr->val.bval = !nptr->children[0]->val.bval;
+                return;
+            }
+        }
 
         // Handle binary operators
         if(is_binop(nptr->tok)) {
-            for(int i = 0; i < 2; i++) {
-                eval_node(nptr->children[i]);
-            }
-
             if(terminate || ignore_input) return;
             
             // Call the appropriate function based on the token
             int index = nptr->tok - TOK_PLUS;
             (*binopTypes[index].func_ptr)(&nptr->val, nptr->children[0], nptr->children[1]);
+            return;
+        }
+
+        // Handle ternary operators
+        if(nptr->tok == TOK_QUESTION) {
+            if(nptr->children[0]->type != BOOL_TYPE){
+                handle_error(ERR_TYPE);
+                return;
+            }
+
+            if(nptr->type == INT_TYPE) {
+                nptr->val.ival = nptr->children[0]->val.bval ? nptr->children[1]->val.ival : nptr->children[2]->val.ival;
+            } else if(nptr->type == BOOL_TYPE) {
+                nptr->val.bval = nptr->children[0]->val.bval ? nptr->children[1]->val.bval : nptr->children[2]->val.bval;
+            } else if(nptr->type == STRING_TYPE) {
+                char* string = nptr->children[0]->val.bval ? nptr->children[1]->val.sval : nptr->children[2]->val.sval;
+
+                nptr->val.sval = (char *) malloc(strlen(string) + 1);
+                if (! nptr->val.sval) {
+                    logging(LOG_FATAL, "failed to allocate string");
+                    return;
+                }
+                strcpy(nptr->val.sval, string);
+            }
+
         }
     }
 
@@ -306,5 +539,15 @@ void infer_and_eval(node_t *nptr) {
  */
 
 char *strrev(char *str) {
-    return NULL;
+    int length = strlen(str);
+
+    char* result = malloc(length + 1);
+
+    for(int i = length - 1; i >= 0; i--) {
+        result[length - 1 - i] = str[i];
+    }
+
+    result[length] = '\0';
+
+    return result;
 }
