@@ -92,6 +92,8 @@ static node_t *build_leaf(void) {
             if (! result->val.sval) {
                 //TODO: Check for errors in memory allocation for all allocations
                 logging(LOG_FATAL, "failed to allocate string");
+                free(result->val.sval);
+                free(result);
                 return NULL;
             }
             strcpy(result->val.sval, this_token->repr);
@@ -145,6 +147,7 @@ static node_t *build_exp(void) {
                 result->children[0] = build_exp();
                 if(next_token->ttype != TOK_RPAREN) {
                     handle_error(ERR_SYNTAX);
+                    cleanup(result);
                     return NULL;
                 }
                 advance_lexer();
@@ -154,7 +157,7 @@ static node_t *build_exp(void) {
             node_t* temp = build_exp();
             
             if(next_token->ttype == TOK_RPAREN) {
-                free(result);
+                cleanup(result);
                 advance_lexer();
                 return temp;
             }
@@ -166,6 +169,7 @@ static node_t *build_exp(void) {
                 result->children[1] = build_exp();
                 if(next_token->ttype != TOK_RPAREN) {
                     handle_error(ERR_SYNTAX);
+                    cleanup(result);
                     return NULL;
                 }
                 advance_lexer();
@@ -178,6 +182,7 @@ static node_t *build_exp(void) {
                 result->children[1] = build_exp();
                 if(next_token->ttype != TOK_COLON) {
                     handle_error(ERR_SYNTAX);
+                    cleanup(result);
                     return NULL;
                 }
                 advance_lexer();
@@ -185,12 +190,14 @@ static node_t *build_exp(void) {
                 result->children[2] = build_exp();
                 if(next_token->ttype != TOK_RPAREN) {
                     handle_error(ERR_SYNTAX);
+                    cleanup(result);
                     return NULL;
                 }
                 advance_lexer();
                 return result;
             }
         }
+        free(result);
         return NULL;
     }
 }

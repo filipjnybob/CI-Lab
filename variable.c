@@ -128,13 +128,13 @@ void print_entry(entry_t *eptr) {
     if (! eptr) return;
     switch (eptr->type) {
         case INT_TYPE:
-            fprintf(outfile, "\t%s = %d\n", eptr->id, eptr->val.ival);
+            fprintf(outfile, "%s = %d; ", eptr->id, eptr->val.ival);
             break;
         case BOOL_TYPE:
-            fprintf(outfile, "\t%s = %s\n", eptr->id, bool_print[eptr->val.bval]);
+            fprintf(outfile, "%s = %s; ", eptr->id, bool_print[eptr->val.bval]);
             break;
         case STRING_TYPE:
-            fprintf(outfile, "\t%s = %s\n", eptr->id, eptr->val.sval);
+            fprintf(outfile, "%s = \"%s\"; ", eptr->id, eptr->val.sval);
             break;
         default:
             logging(LOG_ERROR, "unsupported entry type for printing");
@@ -149,9 +149,10 @@ void print_table(void) {
         logging(LOG_ERROR, "variable table doesn't exist");
         return;
     }
-
+    fprintf(outfile, "\t");
     for (int i = 0; i < CAPACITY; ++i) {
         print_entry(var_table->entries[i]);
     }
+    fprintf(outfile, "\n");
     return;
 }
