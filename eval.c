@@ -89,6 +89,10 @@ static void infer_type(node_t *nptr) {
 
         // Handle unary operator
         if(is_unop(nptr->tok)) {
+            if(nptr->children[0] == NULL) {
+                handle_error(ERR_SYNTAX);
+                return;
+            }
             if(nptr->tok == TOK_UMINUS) {
                 if(nptr->children[0]->type == INT_TYPE) {
                     nptr->type = INT_TYPE;
@@ -114,6 +118,10 @@ static void infer_type(node_t *nptr) {
 
         // Handle binary operator
         if(is_binop(nptr->tok)) {
+            if(nptr->children[0] == NULL || nptr->children[1] == NULL) {
+                handle_error(ERR_SYNTAX);
+                return;
+            }
             
             // Special case
             // String times operator allows different types
@@ -210,7 +218,7 @@ static void infer_root(node_t *nptr) {
             infer_type(nptr->children[i]);
         }
         if (nptr->children[0] == NULL) {
-            logging(LOG_ERROR, "failed to find child node");
+            handle_error(ERR_SYNTAX);
             return;
         }
         nptr->type = nptr->children[0]->type;
@@ -328,7 +336,7 @@ static void modulo(value_t *value, node_t *left, node_t *right) {
     return;
 }
 
-/* add() - Calculates the AND of the left and right bool values and
+/* and() - Calculates the AND of the left and right bool values and
  * stores it in value
  */
 static void and(value_t *value, node_t *left, node_t *right) {
@@ -341,7 +349,7 @@ static void and(value_t *value, node_t *left, node_t *right) {
     return;
 }
 
-/* add() - Calculates the OR of the left and right bool values and
+/* or() - Calculates the OR of the left and right bool values and
  * stores it in value
  */
 static void or(value_t *value, node_t *left, node_t *right) {
@@ -437,7 +445,31 @@ static void eval_node(node_t *nptr) {
     if(terminate || ignore_input) return;
 
     if(nptr->node_type == NT_INTERNAL) {
-        
+        // Handle ternary operators
+        if(nptr->tok == TOK_QUESTION) {
+            if(nptr->children[0]->type != BOOL_TYPE){
+                handle_error(ERR_TYPE);
+                return;
+            }
+
+            if(nptr->type == INT_TYPE) {
+                nptr->val.ival = nptr->children[0]->val.bval ? nptr->children[1]->val.ival : nptr->children[2]->val.ival;
+            } else if(nptr->type == BOOL_TYPE) {
+                nptr->val.bval = nptr->children[0]->val.bval ? nptr->children[1]->val.bval : nptr->children[2]->val.bval;
+            } else if(nptr->type == STRING_TYPE) {
+                char* string = nptr->children[0]->val.bval ? nptr->children[1]->val.sval : nptr->children[2]->val.sval;
+
+                nptr->val.sval = (char *) malloc(strlen(string) + 1);
+                if (! nptr->val.sval) {
+                    logging(LOG_FATAL, "failed to allocate string");
+                    return;
+                }
+                strcpy(nptr->val.sval, string);
+            }
+
+            return;
+        }
+
         for(int i = 0; i < 2; i++) {
             eval_node(nptr->children[i]);
         }
@@ -479,29 +511,6 @@ static void eval_node(node_t *nptr) {
             return;
         }
 
-        // Handle ternary operators
-        if(nptr->tok == TOK_QUESTION) {
-            if(nptr->children[0]->type != BOOL_TYPE){
-                handle_error(ERR_TYPE);
-                return;
-            }
-
-            if(nptr->type == INT_TYPE) {
-                nptr->val.ival = nptr->children[0]->val.bval ? nptr->children[1]->val.ival : nptr->children[2]->val.ival;
-            } else if(nptr->type == BOOL_TYPE) {
-                nptr->val.bval = nptr->children[0]->val.bval ? nptr->children[1]->val.bval : nptr->children[2]->val.bval;
-            } else if(nptr->type == STRING_TYPE) {
-                char* string = nptr->children[0]->val.bval ? nptr->children[1]->val.sval : nptr->children[2]->val.sval;
-
-                nptr->val.sval = (char *) malloc(strlen(string) + 1);
-                if (! nptr->val.sval) {
-                    logging(LOG_FATAL, "failed to allocate string");
-                    return;
-                }
-                strcpy(nptr->val.sval, string);
-            }
-
-        }
     }
 
     return;
@@ -524,7 +533,7 @@ void eval_root(node_t *nptr) {
         if (terminate || ignore_input) return;
         
         if (nptr->children[0] == NULL) {
-            logging(LOG_ERROR, "failed to find child node");
+            handle_error(ERR_SYNTAX);
             return;
         }
         put(nptr->children[0]->val.sval, nptr->children[1]);

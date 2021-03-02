@@ -206,6 +206,8 @@ static node_t *build_exp(void) {
                 return result;
             }
         }
+        
+        handle_error(ERR_SYNTAX);
         free(result);
         return NULL;
     }
