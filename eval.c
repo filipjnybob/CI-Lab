@@ -47,6 +47,30 @@ static const struct {
     {TOK_EQ,     &equals, 2,    {INT_TYPE, STRING_TYPE}}               // ~
 };
 
+void resolve_variable(node_t *nptr) {
+    entry_t* var = get(nptr->val.sval);
+
+    if(var == NULL) {
+        handle_error(ERR_UNDEFINED);
+        return;
+    }
+
+    nptr->type = var->type;
+
+    if(nptr->type == STRING_TYPE) {
+        nptr->val.sval = (char *) malloc(strlen(var->val.sval) + 1);
+        if (! nptr->val.sval) {
+            logging(LOG_FATAL, "failed to allocate string");
+            return;
+        }
+        strcpy(nptr->val.sval, var->val.sval);
+    } else {
+        nptr->val.ival = var->val.ival;
+    }
+
+    return;
+}
+
 /* infer_type() - set the type of a non-root node based on the types of children
  * Parameter: A node pointer, possibly NULL.
  * Return value: None.
@@ -158,8 +182,14 @@ static void infer_type(node_t *nptr) {
         
     }
 
+    if(nptr->type == ID_TYPE) {
+        resolve_variable(nptr);
+        return;
+    }
+
     return;
 }
+
 
 /* infer_root() - set the type of the root node based on the types of children
  * Parameter: A pointer to a root node, possibly NULL.

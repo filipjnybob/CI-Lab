@@ -1,3 +1,4 @@
+
 /**************************************************************************
  * C S 429 EEL interpreter
  * 
@@ -112,6 +113,46 @@ entry_t * init_entry(char *id, node_t *nptr) {
  */
 
 void put(char *id, node_t *nptr) {
+
+    entry_t* temp = var_table->entries[hash_function(id)];
+
+    // Initialize 1st entry if needed
+    if(!temp) {
+        var_table->entries[hash_function(id)] = init_entry(id, nptr);
+        return;
+    }
+
+    bool match = strcmp(temp->id, id) == 0;
+    while(temp->next != NULL && !match) {
+        temp = temp->next;
+        match = strcmp(temp->id, id) == 0;
+    }
+
+    // Update existing entry
+    if(match) {
+        if(temp->type == STRING_TYPE) {
+            free(temp->val.sval);
+        }
+
+        temp->type = nptr->type;
+        if (temp->type == STRING_TYPE) {
+            (temp->val).sval = (char *) malloc(strlen(nptr->val.sval) + 1);
+            if (! temp->val.sval) {
+                logging(LOG_FATAL, "failed to allocate string");
+                return;
+            }
+            strcpy(temp->val.sval, nptr->val.sval);
+        } else {
+            temp->val.ival = nptr->val.ival;
+        }
+        return;
+    }
+
+    // Create new entry
+    if(temp->next == NULL) {
+        temp->next = init_entry(id, nptr);
+        return;
+    }
     return;
 }
 
@@ -121,6 +162,26 @@ void put(char *id, node_t *nptr) {
  * (STUDENT TODO) 
  */
 entry_t* get(char* id) {
+
+    entry_t* result = var_table->entries[hash_function(id)];
+    
+    if(result != NULL) {
+
+        if(strcmp(result->id, id) == 0) {
+                return result;
+        }
+
+        while(result->next != NULL) {
+
+            result = result->next;
+
+            if(strcmp(result->id, id) == 0) {
+                return result;
+            }
+        }
+        
+    }
+
     return NULL;
 }
 

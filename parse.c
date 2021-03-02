@@ -71,7 +71,6 @@ static node_t *build_leaf(void) {
     switch(this_token->ttype) {
         case TOK_NUM:
             result->type = INT_TYPE;
-            // TODO figure out how to convert string to int
             result->val.ival = (int) strtol(this_token->repr, NULL, 10);
             break;
         case TOK_TRUE:
@@ -92,7 +91,17 @@ static node_t *build_leaf(void) {
             if (! result->val.sval) {
                 //TODO: Check for errors in memory allocation for all allocations
                 logging(LOG_FATAL, "failed to allocate string");
-                free(result->val.sval);
+                free(result);
+                return NULL;
+            }
+            strcpy(result->val.sval, this_token->repr);
+            break;
+        case TOK_ID: ;
+            result->type = ID_TYPE;
+            result->val.sval = (char *) malloc(strlen(this_token->repr) + 1);
+            if (! result->val.sval) {
+                //TODO: Check for errors in memory allocation for all allocations
+                logging(LOG_FATAL, "failed to allocate string");
                 free(result);
                 return NULL;
             }
@@ -307,6 +316,9 @@ void cleanup(node_t *nptr) {
     }
     for(int i = 0; i < 3; i++) {
         cleanup(nptr->children[i]);
+    }
+    if(nptr->type == STRING_TYPE) {
+        free(nptr->val.sval);
     }
     free(nptr);
     return;
