@@ -281,6 +281,10 @@ static void multiply(value_t *value, node_t *left, node_t *right) {
 
     // Handle Strings
     if(left->type == STRING_TYPE) {
+        if(right->val.ival < 0) {
+            handle_error(ERR_EVAL);
+            return;
+        }
         value->sval = (char *) malloc((strlen(left->val.sval) * right->val.ival) + 1);
         if (! value->sval) {
             logging(LOG_FATAL, "failed to allocate string");
@@ -452,12 +456,15 @@ static void eval_node(node_t *nptr) {
                 return;
             }
 
+            node_t* result = nptr->children[0] ? nptr->children[1] : nptr->children[2];
+            eval_node(result);
+
             if(nptr->type == INT_TYPE) {
-                nptr->val.ival = nptr->children[0]->val.bval ? nptr->children[1]->val.ival : nptr->children[2]->val.ival;
+                nptr->val.ival = result->val.ival;
             } else if(nptr->type == BOOL_TYPE) {
-                nptr->val.bval = nptr->children[0]->val.bval ? nptr->children[1]->val.bval : nptr->children[2]->val.bval;
+                nptr->val.bval = result->val.bval;
             } else if(nptr->type == STRING_TYPE) {
-                char* string = nptr->children[0]->val.bval ? nptr->children[1]->val.sval : nptr->children[2]->val.sval;
+                char* string = result->val.sval;
 
                 nptr->val.sval = (char *) malloc(strlen(string) + 1);
                 if (! nptr->val.sval) {
