@@ -456,6 +456,7 @@ static void eval_node(node_t *nptr) {
                 return;
             }
 
+            eval_node(nptr->children[0]);
             node_t* result = nptr->children[0]->val.bval ? nptr->children[1] : nptr->children[2];
             eval_node(result);
 
