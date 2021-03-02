@@ -456,7 +456,7 @@ static void eval_node(node_t *nptr) {
                 return;
             }
 
-            node_t* result = nptr->children[0] ? nptr->children[1] : nptr->children[2];
+            node_t* result = nptr->children[0]->val.bval ? nptr->children[1] : nptr->children[2];
             eval_node(result);
 
             if(nptr->type == INT_TYPE) {
@@ -533,6 +533,8 @@ void eval_root(node_t *nptr) {
     if (nptr == NULL) return;
     // check running status
     if (terminate || ignore_input) return;
+
+    //print_tree(nptr);
 
     // check for assignment
     if (nptr->type == ID_TYPE) {
